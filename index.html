@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookie Scanning System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PDF & DOCX Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .spinner {
+            border-top-color: #ffffff; /* White spinner for blue button */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        .modal-enter {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        tr[data-clickable="true"]:hover {
+            background-color: #f9fafb; /* gray-50 */
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased">
+    <div class="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8">
+        <div class="w-full max-w-7xl mx-auto">
+            <!-- Header Section -->
+            <header class="text-center mb-10">
+                <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">🍪 Cookie Scanning System</h1>
+                <p class="mt-2 text-lg text-gray-600">A comprehensive tool to audit website cookies, security, and privacy risks.</p>
+            </header>
+
+            <!-- Input Section -->
+            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/80">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                     <!-- Scan Depth -->
+                    <div class="lg:col-span-3">
+                        <label for="pageCount" class="block text-sm font-medium text-gray-700 mb-2">Scan Depth</label>
+                        <select id="pageCount" class="w-full bg-white text-gray-900 border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition duration-200">
+                            <option value="1">1 Page (Quick)</option>
+                            <option value="5">5 Pages (Standard)</option>
+                            <option value="20">20 Pages (Deep)</option>
+                        </select>
+                    </div>
+                     <!-- Geographic Region -->
+                    <div class="lg:col-span-3">
+                        <label for="geoRegion" class="block text-sm font-medium text-gray-700 mb-2">Simulate From</label>
+                        <select id="geoRegion" class="w-full bg-white text-gray-900 border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition duration-200">
+                            <option value="global">Global (Default)</option>
+                            <option value="eu">European Union (GDPR)</option>
+                            <option value="us">United States (CCPA)</option>
+                            <option value="in">India</option>
+                        </select>
+                    </div>
+                    <!-- URL Input -->
+                    <div class="lg:col-span-4">
+                         <label for="urlInput" class="block text-sm font-medium text-gray-700 mb-2">Website URL</label>
+                        <input type="url" id="urlInput" placeholder="https://example.com" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition duration-200">
+                    </div>
+                    <!-- Scan Button -->
+                    <div class="lg:col-span-2 self-end">
+                        <button id="scanButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center transition duration-200 disabled:bg-blue-400 disabled:cursor-not-allowed shadow-sm hover:shadow-md">
+                            <span id="buttonText">Scan Website</span>
+                            <div id="loader" class="spinner w-5 h-5 rounded-full border-2 border-t-white border-blue-200 ml-3 hidden"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="mt-10 hidden">
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-xl border border-gray-200/80 text-center shadow-sm"><p class="text-3xl font-bold text-gray-800" id="totalCookies">0</p><p class="text-sm text-gray-500">Total Cookies</p></div>
+                    <div class="bg-white p-4 rounded-xl border border-gray-200/80 text-center shadow-sm"><p class="text-3xl font-bold text-red-600" id="highRiskCookies">0</p><p class="text-sm text-gray-500">High Risk</p></div>
+                    <div class="bg-white p-4 rounded-xl border border-gray-200/80 text-center shadow-sm"><p class="text-3xl font-bold text-green-600" id="strictlyNecessaryCookies">0</p><p class="text-sm text-gray-500">Necessary</p></div>
+                    <div class="bg-white p-4 rounded-xl border border-gray-200/80 text-center shadow-sm"><p class="text-3xl font-bold text-blue-600" id="functionalCookies">0</p><p class="text-sm text-gray-500">Functional</p></div>
+                    <div class="bg-white p-4 rounded-xl border border-gray-200/80 text-center shadow-sm"><p class="text-3xl font-bold text-orange-500" id="targetingCookies">0</p><p class="text-sm text-gray-500">Targeting</p></div>
+                </div>
+
+                <!-- Action Buttons -->
+                 <div class="flex justify-end gap-3 mb-4">
+                    <button id="downloadJson" class="bg-white hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm border border-gray-300 shadow-sm">JSON</button>
+                    <button id="downloadCsv" class="bg-white hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm border border-gray-300 shadow-sm">CSV</button>
+                    <button id="downloadPdf" class="bg-white hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm border border-gray-300 shadow-sm">PDF</button>
+                    <button id="downloadDocx" class="bg-white hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm border border-gray-300 shadow-sm">DOCX</button>
+                </div>
+
+                <!-- Results Table -->
+                <div class="bg-white rounded-2xl shadow-lg border border-gray-200/80 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Risk</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Security</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Rows will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="errorModalContainer" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"></div>
+    <div id="detailsModalContainer" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"></div>
+
+    <script type="module">
+        // --- DOM Element References ---
+        const urlInput = document.getElementById('urlInput');
+        const pageCountSelect = document.getElementById('pageCount');
+        const geoRegionSelect = document.getElementById('geoRegion');
+        const scanButton = document.getElementById('scanButton');
+        const buttonText = document.getElementById('buttonText');
+        const loader = document.getElementById('loader');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsTableBody = document.getElementById('resultsTableBody');
+        const errorModalContainer = document.getElementById('errorModalContainer');
+        const detailsModalContainer = document.getElementById('detailsModalContainer');
+        const downloadButtons = {
+            json: document.getElementById('downloadJson'),
+            csv: document.getElementById('downloadCsv'),
+            pdf: document.getElementById('downloadPdf'),
+            docx: document.getElementById('downloadDocx'),
+        };
+
+        // --- State ---
+        let finalCookieReport = [];
+
+        // --- Database ---
+        const KNOWN_COOKIE_DB = {
+            'sessionid': { category: 'Strictly Necessary Cookies', purpose: 'Maintains user session state after login.', vendor: 'Self-hosted' },
+            'csrftoken': { category: 'Strictly Necessary Cookies', purpose: 'Prevents Cross-Site Request Forgery attacks.', vendor: 'Self-hosted' },
+            'viewed_cookie_policy': { category: 'Strictly Necessary Cookies', purpose: 'Remembers if the user has accepted the cookie policy.', vendor: 'Self-hosted' },
+            'user_prefs': { category: 'Functional Cookies', purpose: 'Stores user preferences like theme or language.', vendor: 'Self-hosted' },
+            'remember_me': { category: 'Functional Cookies', purpose: 'Keeps the user logged in for a specified duration.', vendor: 'Self-hosted' },
+            '_ga': { category: 'Targeting Cookies', purpose: 'Used by Google Analytics to distinguish users for tracking.', vendor: 'Google LLC' },
+            '_gid': { category: 'Targeting Cookies', purpose: 'Used by Google Analytics to distinguish users.', vendor: 'Google LLC' },
+            '_gat': { category: 'Targeting Cookies', purpose: 'Used by Google Analytics to throttle request rate.', vendor: 'Google LLC' },
+            '__gads': { category: 'Targeting Cookies', purpose: 'Used by Google AdSense for ad delivery or retargeting.', vendor: 'Google LLC' },
+            '_fbp': { category: 'Targeting Cookies', purpose: 'Used by Facebook to deliver targeted advertising.', vendor: 'Meta Platforms, Inc.' },
+            '_twitter_sess': { category: 'Social Media Cookies', purpose: 'Used by Twitter for session management and integration.', vendor: 'Twitter, Inc.' },
+            '_pinterest_cm': { category: 'Social Media Cookies', purpose: 'Used by Pinterest for user tracking and content sharing.', vendor: 'Pinterest, Inc.' },
+            'OptanonConsent': { category: 'Strictly Necessary Cookies', purpose: 'Stores user consent preferences for OneTrust.', vendor: 'OneTrust, LLC' },
+            'ccpa_notice_viewed': { category: 'Strictly Necessary Cookies', purpose: 'Tracks if a user in California has seen the CCPA notice.', vendor: 'Self-hosted' },
+            'gdpr_consent': { category: 'Strictly Necessary Cookies', purpose: 'Stores user consent choices under GDPR.', vendor: 'Self-hosted' }
+        };
+        
+        // --- Utility & Helper Functions ---
+        function isValidUrl(string) {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function getRiskBadge(risk) {
+            const colors = { 'Low': 'bg-green-100 text-green-800', 'Medium': 'bg-yellow-100 text-yellow-800', 'High': 'bg-red-100 text-red-800' };
+            return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${colors[risk] || 'bg-gray-100 text-gray-800'}">${risk}</span>`;
+        }
+        function getCategoryColor(category) {
+            const colors = { 'Strictly Necessary Cookies': 'text-green-700', 'Functional Cookies': 'text-blue-700', 'Targeting Cookies': 'text-red-700', 'Social Media Cookies': 'text-purple-700', 'Unclassified': 'text-gray-500' };
+            return colors[category] || 'text-gray-500';
+        }
+        function getSecurityFlags(cookie) {
+            const httpOnly = `<span title="HttpOnly: ${cookie.httpOnly}">${getIcon(cookie.httpOnly)}</span>`;
+            const secure = `<span title="Secure: ${cookie.secure}">${getIcon(cookie.secure)}</span>`;
+            const sameSite = `<span title="SameSite: ${cookie.sameSite}" class="text-xs font-mono bg-gray-200 px-1 rounded">${cookie.sameSite || 'N/A'}</span>`;
+            return `${httpOnly} ${secure} ${sameSite}`;
+        }
+        function getIcon(present) {
+            return present 
+                ? `<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
+                : `<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+        }
+        function formatExpiry(timestamp) {
+            if (timestamp === -1 || !timestamp) return 'Session';
+            const expiryDate = new Date(timestamp * 1000);
+            return new Date() > expiryDate ? 'Expired' : expiryDate.toLocaleDateString();
+        }
+
+        function triggerDownload(url, filename) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+        }
+
+        // --- Download Functions ---
+        function downloadJson() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(finalCookieReport, null, 2));
+            triggerDownload(dataStr, "cookie_audit_report.json");
+        }
+        function downloadCsv() {
+            const headers = "Name,Domain,Category,Risk,Vendor,Purpose,Expiry,HttpOnly,Secure,SameSite\n";
+            const csvRows = finalCookieReport.map(c => [
+                `"${c.name}"`, `"${c.domain}"`, `"${c.category}"`, `"${c.risk}"`, `"${c.vendor}"`, `"${(c.purpose || '').replace(/"/g, '""')}"`, `"${formatExpiry(c.expires)}"`, c.httpOnly, c.secure, c.sameSite
+            ].join(',')).join('\n');
+            const blob = new Blob([headers + csvRows], { type: 'text/csv;charset=utf-8;' });
+            triggerDownload(URL.createObjectURL(blob), "cookie_audit_report.csv");
+        }
+        function downloadPdf() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'landscape' });
+            doc.text("Cookie Audit Report", 14, 16);
+            const tableColumn = ["Name", "Risk", "Category", "Vendor", "Purpose", "Expiry"];
+            const tableRows = finalCookieReport.map(c => [c.name, c.risk, c.category, c.vendor, c.purpose, formatExpiry(c.expires)]);
+            doc.autoTable({ head: [tableColumn], body: tableRows, startY: 25, theme: 'grid', headStyles: { fillColor: [37, 99, 235] }, styles: { fontSize: 8 } });
+            doc.save('cookie_audit_report.pdf');
+        }
+        async function downloadDocx() {
+            const tableRows = finalCookieReport.map(c => new docx.TableRow({ children: [
+                new docx.TableCell({ children: [new docx.Paragraph(c.name)] }), new docx.TableCell({ children: [new docx.Paragraph(c.risk)] }), new docx.TableCell({ children: [new docx.Paragraph(c.category)] }), new docx.TableCell({ children: [new docx.Paragraph(c.vendor)] }), new docx.TableCell({ children: [new docx.Paragraph(formatExpiry(c.expires))] })
+            ]}));
+            const table = new docx.Table({ rows: [ new docx.TableRow({ children: [
+                new docx.TableCell({ children: [new docx.Paragraph({ text: "Name", bold: true })] }), new docx.TableCell({ children: [new docx.Paragraph({ text: "Risk", bold: true })] }), new docx.TableCell({ children: [new docx.Paragraph({ text: "Category", bold: true })] }), new docx.TableCell({ children: [new docx.Paragraph({ text: "Vendor", bold: true })] }), new docx.TableCell({ children: [new docx.Paragraph({ text: "Expiry", bold: true })] })
+            ], tableHeader: true }), ...tableRows ], width: { size: 100, type: docx.WidthType.PERCENTAGE }});
+            const doc = new docx.Document({ sections: [{ children: [ new docx.Paragraph({ text: "Cookie Audit Report", heading: docx.HeadingLevel.HEADING_1 }), table ]}] });
+            const blob = await docx.Packer.toBlob(doc);
+            triggerDownload(URL.createObjectURL(blob), "cookie_audit_report.docx");
+        }
+
+        // --- Modals ---
+        function showError(message) {
+            errorModalContainer.innerHTML = `
+                <div class="bg-white border border-red-300 rounded-lg p-6 max-w-sm w-full text-center shadow-2xl modal-enter">
+                    <h3 class="text-xl font-bold mb-4 text-red-700">Scan Error</h3>
+                    <p class="mb-6 text-gray-700">${message}</p>
+                    <button id="closeErrorModalBtn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg">Close</button>
+                </div>`;
+            errorModalContainer.classList.remove('hidden');
+            errorModalContainer.querySelector('#closeErrorModalBtn').addEventListener('click', () => {
+                errorModalContainer.classList.add('hidden');
+            });
+        }
+        function showDetailsModal(cookie) {
+            detailsModalContainer.innerHTML = `
+                <div class="bg-white rounded-2xl p-8 max-w-2xl w-full shadow-2xl modal-enter">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-2xl font-bold text-gray-900">${cookie.name}</h3>
+                            <p class="text-sm text-gray-500 mt-1">${cookie.domain}</p>
+                        </div>
+                        <button id="closeDetailsModalBtn" class="p-1 text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <div class="mt-6 border-t border-gray-200 pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div><strong class="block text-sm text-gray-500">Category</strong><p class="mt-1 ${getCategoryColor(cookie.category)} font-semibold">${cookie.category}</p></div>
+                        <div><strong class="block text-sm text-gray-500">Vendor</strong><p class="mt-1">${cookie.vendor}</p></div>
+                        <div><strong class="block text-sm text-gray-500">Privacy Risk</strong><p class="mt-1">${getRiskBadge(cookie.risk)}</p></div>
+                        <div><strong class="block text-sm text-gray-500">Expires</strong><p class="mt-1">${formatExpiry(cookie.expires)}</p></div>
+                        <div class="md:col-span-2"><strong class="block text-sm text-gray-500">Purpose</strong><p class="mt-1">${cookie.purpose}</p></div>
+                        <div class="md:col-span-2"><strong class="block text-sm text-gray-500">Security Flags</strong><div class="flex items-center gap-4 mt-1">${getSecurityFlags(cookie)}</div></div>
+                        <div class="md:col-span-2"><strong class="block text-sm text-gray-500">Value</strong><textarea readonly class="w-full h-24 mt-1 p-2 bg-gray-100 text-gray-700 text-xs font-mono rounded-md border border-gray-300">${cookie.value}</textarea></div>
+                    </div>
+                </div>`;
+            detailsModalContainer.classList.remove('hidden');
+            detailsModalContainer.querySelector('#closeDetailsModalBtn').addEventListener('click', () => {
+                detailsModalContainer.classList.add('hidden');
+            });
+        }
+
+        // --- Main Logic & Core Functions ---
+        function setLoadingState(isLoading) {
+            scanButton.disabled = isLoading;
+            loader.classList.toggle('hidden', !isLoading);
+            buttonText.textContent = isLoading ? 'Scanning...' : 'Scan Website';
+        }
+
+        async function handleDownload(format) {
+            if (finalCookieReport.length === 0) return;
+            const downloads = {
+                json: downloadJson,
+                csv: downloadCsv,
+                pdf: downloadPdf,
+                docx: downloadDocx,
+            };
+            await downloads[format]();
+        }
+
+        function displayResults(reportData) {
+            resultsTableBody.innerHTML = '';
+            const counts = { total: reportData.length, highRisk: 0, necessary: 0, functional: 0, targeting: 0 };
+
+            reportData.forEach(cookie => {
+                if (cookie.risk === 'High') counts.highRisk++;
+                if (cookie.category === 'Strictly Necessary Cookies') counts.necessary++;
+                if (cookie.category === 'Functional Cookies') counts.functional++;
+                if (cookie.category === 'Targeting Cookies' || cookie.category === 'Social Media Cookies') counts.targeting++;
+
+                const row = document.createElement('tr');
+                row.dataset.clickable = "true";
+                row.addEventListener('click', () => showDetailsModal(cookie));
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${cookie.name}<p class="text-xs text-gray-500">${cookie.domain}</p></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">${getRiskBadge(cookie.risk)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold ${getCategoryColor(cookie.category)}">${cookie.category}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cookie.vendor}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 flex items-center gap-2">${getSecurityFlags(cookie)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${formatExpiry(cookie.expires)}</td>
+                `;
+                resultsTableBody.appendChild(row);
+            });
+
+            document.getElementById('totalCookies').textContent = counts.total;
+            document.getElementById('highRiskCookies').textContent = counts.highRisk;
+            document.getElementById('strictlyNecessaryCookies').textContent = counts.necessary;
+            document.getElementById('functionalCookies').textContent = counts.functional;
+            document.getElementById('targetingCookies').textContent = counts.targeting;
+
+            resultsSection.classList.remove('hidden');
+        }
+
+        async function callGeminiApi(prompt) {
+            const apiKey = ""; // Handled by environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "category": { "type": "STRING" },
+                            "purpose": { "type": "STRING" },
+                            "vendor": { "type": "STRING" },
+                            "risk": { "type": "STRING" }
+                        },
+                        required: ["category", "purpose", "vendor", "risk"]
+                    }
+                }
+            };
+            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
+            const result = await response.json();
+            if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                return JSON.parse(result.candidates[0].content.parts[0].text);
+            }
+            throw new Error("Invalid response from Gemini API.");
+        }
+
+        async function aiCategorizeCookies(cookies) {
+            const unclassifiedCookies = cookies.filter(c => c.category === 'Unclassified');
+            if (unclassifiedCookies.length === 0) return Promise.resolve(cookies);
+
+            const aiPromises = unclassifiedCookies.map(cookie => {
+                const prompt = `Analyze the cookie: name="${cookie.name}", domain="${cookie.domain}".
+                Classify its category ("Strictly Necessary Cookies", "Functional Cookies", "Targeting Cookies", "Social Media Cookies", "Unclassified"), provide a one-sentence purpose, identify the vendor company, and assess privacy risk ("Low", "Medium", "High").
+                Respond ONLY with a valid JSON object: {"category": "...", "purpose": "...", "vendor": "...", "risk": "..."}`;
+                
+                return callGeminiApi(prompt).then(aiResponse => ({ ...cookie, ...aiResponse }))
+                    .catch(err => {
+                        console.warn(`AI categorization failed for ${cookie.name}:`, err);
+                        return cookie;
+                    });
+            });
+
+            const aiResults = await Promise.all(aiPromises);
+            return cookies.map(c => aiResults.find(res => res.name === c.name && res.domain === c.domain) || c);
+        }
+
+        function calculateRiskScore(cookie, url) {
+            let score = 0;
+            const mainDomain = new URL(url).hostname;
+
+            if (cookie.category === 'Targeting Cookies' || cookie.category === 'Social Media Cookies') score += 40;
+            if (cookie.category === 'Functional Cookies') score += 10;
+            if (!cookie.domain.includes(mainDomain.replace('www.', ''))) score += 30;
+            const expiry = cookie.expires * 1000;
+            const oneYear = Date.now() + 365 * 24 * 3600 * 1000;
+            if (expiry > oneYear) score += 20;
+            if (!cookie.httpOnly) score += 5;
+            if (!cookie.secure) score += 10;
+            if (cookie.sameSite === 'None' && cookie.secure) score += 5;
+
+            if (score >= 60) return 'High';
+            if (score >= 30) return 'Medium';
+            return 'Low';
+        }
+
+        async function processCookies(cookies, url) {
+            const processed = cookies.map(cookie => {
+                const knownInfo = KNOWN_COOKIE_DB[cookie.name] || {};
+                const enriched = { ...cookie, category: 'Unclassified', purpose: 'Unknown', vendor: 'Unknown', ...knownInfo };
+                enriched.risk = calculateRiskScore(enriched, url);
+                return enriched;
+            });
+
+            return aiCategorizeCookies(processed);
+        }
+
+        function mockExtractCookies(url, pageCount, region) {
+            const domain = new URL(url).hostname.replace('www.', '');
+            let cookies = [
+                { name: '_ga', value: 'GA1.2.12345.67890', domain: `.${domain}`, path: '/', expires: Date.now() / 1000 + 730 * 24 * 3600, httpOnly: false, secure: true, sameSite: 'Lax' },
+                { name: '_fbp', value: 'fb.1.162..._123', domain: `.${domain}`, path: '/', expires: Date.now() / 1000 + 90 * 24 * 3600, httpOnly: false, secure: true, sameSite: 'None' },
+                { name: 'sessionid', value: 'abc123xyz', domain: domain, path: '/', expires: -1, httpOnly: true, secure: true, sameSite: 'Strict' },
+                { name: 'user_prefs', value: 'theme=dark&lang=en', domain: domain, path: '/', expires: Date.now() / 1000 + 30 * 24 * 3600, httpOnly: false, secure: false, sameSite: 'Lax' },
+                { name: 'ad_tracker_id_v2', value: 'uid-9876-5432', domain: '.ads.thirdparty.com', path: '/', expires: Date.now() / 1000 + 180 * 24 * 3600, httpOnly: false, secure: true, sameSite: 'None' },
+                { name: '_twitter_sess', value: 'some_long_string_here', domain: '.twitter.com', path: '/', expires: -1, httpOnly: false, secure: true, sameSite: 'None' },
+            ];
+
+            if (region === 'eu') cookies.push({ name: 'gdpr_consent', value: 'true', domain, path: '/', expires: Date.now() / 1000 + 365 * 24 * 3600, httpOnly: false, secure: true, sameSite: 'Strict' });
+            if (region === 'us') cookies.push({ name: 'ccpa_notice_viewed', value: 'true', domain, path: '/', expires: Date.now() / 1000 + 365 * 24 * 3600, httpOnly: false, secure: true, sameSite: 'Strict' });
+
+            for (let i = 1; i < pageCount; i++) {
+                cookies.push({ name: `page_tracker_${i}`, value: crypto.randomUUID(), domain: `.${domain}`, path: '/', expires: Date.now() / 1000 + 365 * 24 * 3600, httpOnly: false, secure: true, sameSite: 'Lax' });
+                if (i % 3 === 0) cookies.push({ name: `_partner_id_${i}`, value: crypto.randomUUID(), domain: `.partner-${i}.com`, path: '/', expires: Date.now() / 1000 + 365 * 24 * 3600, httpOnly: false, secure: true, sameSite: 'None' });
+            }
+
+            return Array.from(new Map(cookies.map(c => [`${c.name}:${c.domain}`, c])).values());
+        }
+
+        async function handleScan() {
+            const url = urlInput.value.trim();
+            if (!isValidUrl(url)) {
+                showError('Please enter a valid URL (e.g., https://example.com)');
+                return;
+            }
+
+            setLoadingState(true);
+            resultsSection.classList.add('hidden');
+            resultsTableBody.innerHTML = '';
+            
+            const pageCount = parseInt(pageCountSelect.value, 10);
+            const region = geoRegionSelect.value;
+
+            try {
+                const extractedCookies = mockExtractCookies(url, pageCount, region);
+                const enrichedCookies = await processCookies(extractedCookies, url);
+                
+                finalCookieReport = enrichedCookies;
+                displayResults(finalCookieReport);
+
+            } catch (error) {
+                console.error("Scan failed:", error);
+                showError(error.message || 'An unexpected error occurred during the scan.');
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        // --- Event Listeners ---
+        scanButton.addEventListener('click', handleScan);
+        Object.keys(downloadButtons).forEach(key => {
+            downloadButtons[key].addEventListener('click', () => handleDownload(key));
+        });
+
+    </script>
+</body>
+</html>
